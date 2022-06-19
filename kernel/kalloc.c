@@ -8,8 +8,10 @@
 #include "spinlock.h"
 #include "riscv.h"
 #include "defs.h"
+#include "sysinfo.h"
 
 void freerange(void *pa_start, void *pa_end);
+void kupdate(int);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -26,8 +28,12 @@ struct {
 void
 kinit()
 {
+  // printf("init: %d\n", info.freemem);
+  info.freemem = 4096;
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+  // info.freemem = 0;
+  // printf("init: %d\n", info.freemem);
 }
 
 void
@@ -60,6 +66,7 @@ kfree(void *pa)
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
+  kupdate(0);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -78,5 +85,21 @@ kalloc(void)
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
+  kupdate(1);
   return (void*)r;
+}
+
+struct sysinfo info;
+void
+kupdate(int flag)
+{
+  // printf("debug: before sysinfo = %d\n", sy.freemem);
+  if(flag == 1) {
+    info.freemem -= PGSIZE;
+  }
+
+  if(flag == 0) {
+    info.freemem += PGSIZE;
+  }
+  // printf("debug: after sysinfo = %d\n", info.freemem);
 }

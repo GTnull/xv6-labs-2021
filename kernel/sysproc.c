@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -94,4 +95,46 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_trace(void)
+{
+  //  implements the new system call by remembering its argument in a new variable
+  //  in the proc structure (see kernel/proc.h).
+
+  int n;
+  if(argint(0, &n) < 0)
+    return -1;
+  struct proc *p = myproc();
+  p->sys_trace_mask = n;
+  // printf("trace number: %d\n", n);
+  return 0;
+}
+
+extern struct sysinfo info;
+uint64
+get_sysinfo(uint64 addr)
+{
+  struct proc *p = myproc();
+  // printf("sysproc120: freemem = %d, pointer = %d\n", info.freemem, &info);
+  if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+    return -1;
+  return 0;
+}
+
+// struct sysinfo info;
+uint64
+sys_sysinfo(void)
+{
+  // arg is sysinfo pointer
+  // first, get arg, then copy info to arg
+
+  uint64 st; // user pointer to struct sysinfo
+
+  if(argaddr(0, &st) < 0)
+    return -1;
+  // printf("sysinfo: %d\n", st);
+  uint64 ret = get_sysinfo(st);
+  return ret;
 }

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sysinfo.h"
 
 struct cpu cpus[NCPU];
 
@@ -19,6 +20,8 @@ extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
+
+extern struct sysinfo info;
 
 // helps ensure that wakeups of wait()ing
 // parents are not lost. helps obey the
@@ -230,6 +233,7 @@ userinit(void)
   p = allocproc();
   initproc = p;
   
+  info.nproc = 1;
   // allocate one user page and copy init's instructions
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
@@ -272,6 +276,7 @@ growproc(int n)
 int
 fork(void)
 {
+  // Modify fork() (see kernel/proc.c) to copy the trace mask from the parent to the child process.
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -291,6 +296,9 @@ fork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+
+  // copy trace mask
+  np->sys_trace_mask = p->sys_trace_mask;
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -315,6 +323,7 @@ fork(void)
   np->state = RUNNABLE;
   release(&np->lock);
 
+  info.nproc++;
   return pid;
 }
 
@@ -372,6 +381,8 @@ exit(int status)
   p->state = ZOMBIE;
 
   release(&wait_lock);
+
+  info.nproc--;
 
   // Jump into the scheduler, never to return.
   sched();

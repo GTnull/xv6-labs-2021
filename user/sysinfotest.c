@@ -6,6 +6,7 @@
 
 void
 sinfo(struct sysinfo *info) {
+  // printf("user space: %d\n", info);
   if (sysinfo(info) < 0) {
     printf("FAIL: sysinfo failed");
     exit(1);
@@ -21,13 +22,14 @@ countfree()
   uint64 sz0 = (uint64)sbrk(0);
   struct sysinfo info;
   int n = 0;
-
+  // printf("n = %d, info.freemem = %d\n", n, info.freemem); 
   while(1){
     if((uint64)sbrk(PGSIZE) == 0xffffffffffffffff){
       break;
     }
     n += PGSIZE;
   }
+  // printf("n = %d, info.freemem = %d\n", n, info.freemem);
   sinfo(&info);
   if (info.freemem != 0) {
     printf("FAIL: there is no free mem, but sysinfo.freemem=%d\n",
@@ -73,6 +75,7 @@ testmem() {
     printf("FAIL: free mem %d (bytes) instead of %d\n", n, info.freemem);
     exit(1);
   }
+  printf("testmem passed\n");
 }
 
 void
@@ -88,6 +91,7 @@ testcall() {
     printf("FAIL: sysinfo succeeded with bad argument\n");
     exit(1);
   }
+  printf("testcall passed\n");
 }
 
 void testproc() {
@@ -106,6 +110,7 @@ void testproc() {
   }
   if(pid == 0){
     sinfo(&info);
+    printf("child info.nproc = %d\n", info.nproc);
     if(info.nproc != nproc+1) {
       printf("sysinfotest: FAIL nproc is %d instead of %d\n", info.nproc, nproc+1);
       exit(1);
@@ -114,10 +119,12 @@ void testproc() {
   }
   wait(&status);
   sinfo(&info);
+  printf("parent info.nproc = %d\n", info.nproc);
   if(info.nproc != nproc) {
       printf("sysinfotest: FAIL nproc is %d instead of %d\n", info.nproc, nproc);
       exit(1);
   }
+  printf("testproc passed\n");
 }
 
 int
