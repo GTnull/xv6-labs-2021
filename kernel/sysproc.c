@@ -81,7 +81,20 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
-  return 0;
+  uint64 base;
+  if(argaddr(0, &base) < 0)
+    return -1;
+
+  int len;
+  if(argint(1, &len) < 0)
+    return -1;
+
+  uint64 p_mask;
+  if(argaddr(2, &p_mask) < 0)
+    return -1;
+
+  // printf("base: %p, len: %d, mask: %p\n", base, len, p_mask);
+  return pgaccess((void*)base, len, (void*)p_mask);
 }
 #endif
 

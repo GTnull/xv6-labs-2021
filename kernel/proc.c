@@ -127,6 +127,14 @@ found:
     return 0;
   }
 
+  if((p->usyscall = (struct usyscall *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
+  p->usyscall->pid = p->pid;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -153,6 +161,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->usyscall)
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -188,6 +199,7 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+// mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
@@ -196,7 +208,45 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+    if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0){
+      uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+      uvmunmap(pagetable, TRAPFRAME, 1, 0);
+      uvmfree(pagetable, 0);
+      return 0;
+  }
+
   return pagetable;
+}
+
+//int pgaccess(void *base, int len, void *mask);
+int
+pgaccess(void *base, int len, void *mask)
+{
+  // printf("pgaccess base: %p, len: %d, mask: %p\n", (char*)base, len, (char*)mask);
+  
+  struct proc* p = myproc();
+  if(p == 0) return 1;
+
+  pagetable_t pg = p->pagetable;
+  int ans = 0;
+  for(int i = 0; i < len; i++) {
+    pte_t *pte = walk(pg, ((uint64)base) + (uint64)PGSIZE * i, 0);
+    // printf("%p\n", pte);
+    // printf("x: %x b: %c\n", (uint64)pte, (uint64)pte);
+    if(pte != 0 && ((*pte) & PTE_A)) {
+      ans |= 1 << i;
+      *pte ^= PTE_A;
+    }
+  }
+  //copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+  // printf("ans1: %d\n", ans);
+  // ans = 0;
+  // ans |= 1 << 1;
+  // ans |= 1 << 2;
+  // // ans |= 1 << 30;
+  // printf("ans2: %d\n", ans);
+  return copyout(pg, (uint64)mask, (char*)&ans, sizeof(ans));
 }
 
 // Free a process's page table, and free the
@@ -206,6 +256,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
 
